@@ -1,26 +1,17 @@
-/*
- * File: src/core/infrastructure/db.ts
- * Purpose: Manages persistent SQLite database connection instance asynchronously.
- */
-
 import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';
 import path from 'path';
 
 let dbInstance: Database | null = null;
 
-/*
- * Function: getDb
- * Purpose: Returns an existing SQLite connection or establishes a new one and applies schema migrations.
- * Input: none
- * Output: Promise resolving to Database instance
- */
 export async function getDb(): Promise<Database> {
   if (dbInstance) {
     return dbInstance;
   }
 
-  const dbPath = path.resolve(process.cwd(), 'leads.db');
+  const isVercel = Boolean(process.env.VERCEL);
+  const dbDir = isVercel ? '/tmp' : process.cwd();
+  const dbPath = path.resolve(dbDir, 'leads.db');
 
   dbInstance = await open({
     filename: dbPath,
