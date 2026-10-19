@@ -35,8 +35,6 @@ export class TelegramService {
       `<b>Телефон:</b> <code>${lead.phone}</code>`,
       `<b>Цель:</b> ${lead.topic}`,
       `<b>Комментарий:</b> ${lead.comment || '—'}`,
-      `<b>Страница:</b> ${lead.utm.sourcePage || '—'}`,
-      `<b>UTM:</b> ${lead.utm.utmSource || 'direct'} / ${lead.utm.utmCampaign || 'none'}`,
     ].join('\n');
 
     try {

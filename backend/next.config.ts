@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  serverExternalPackages: ['sqlite3'],
+  allowedDevOrigins: ['10.32.75.102', 'localhost:8443'],
   experimental: {
     agentFeedback: true,
   },

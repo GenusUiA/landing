@@ -1,37 +1,53 @@
-/**
- * @file src/core/infrastructure/db.ts
- * @description SQLite database connection bootstrap and schema migration runner.
- * @exports default (Database.Database)
+/*
+ * File: src/core/infrastructure/db.ts
+ * Purpose: Manages persistent SQLite database connection instance asynchronously.
  */
 
-import Database from 'better-sqlite3';
+import sqlite3 from 'sqlite3';
+import { open, Database } from 'sqlite';
 import path from 'path';
 
-const dbPath = path.resolve(process.cwd(), 'leads.db');
-const db = new Database(dbPath);
+let dbInstance: Database | null = null;
 
-db.pragma('journal_mode = WAL');
+/*
+ * Function: getDb
+ * Purpose: Returns an existing SQLite connection or establishes a new one and applies schema migrations.
+ * Input: none
+ * Output: Promise resolving to Database instance
+ */
+export async function getDb(): Promise<Database> {
+  if (dbInstance) {
+    return dbInstance;
+  }
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS leads (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    phone TEXT NOT NULL,
-    topic TEXT NOT NULL,
-    comment TEXT,
-    utm_source TEXT,
-    utm_medium TEXT,
-    utm_campaign TEXT,
-    utm_content TEXT,
-    utm_term TEXT,
-    source_page TEXT,
-    user_agent TEXT,
-    ip TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+  const dbPath = path.resolve(process.cwd(), 'leads.db');
 
-  CREATE INDEX IF NOT EXISTS idx_leads_phone_created 
-  ON leads(phone, created_at);
-`);
+  dbInstance = await open({
+    filename: dbPath,
+    driver: sqlite3.Database,
+  });
 
-export default db;
+  await dbInstance.exec(`
+    CREATE TABLE IF NOT EXISTS leads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      topic TEXT NOT NULL,
+      comment TEXT,
+      utm_source TEXT,
+      utm_medium TEXT,
+      utm_campaign TEXT,
+      utm_content TEXT,
+      utm_term TEXT,
+      source_page TEXT,
+      user_agent TEXT,
+      ip TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_leads_phone_created 
+    ON leads(phone, created_at);
+  `);
+
+  return dbInstance;
+}
