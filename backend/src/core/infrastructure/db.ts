@@ -1,6 +1,7 @@
 import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';
 import path from 'path';
+import fs from 'fs';
 
 let dbInstance: Database | null = null;
 
@@ -9,13 +10,22 @@ export async function getDb(): Promise<Database> {
     return dbInstance;
   }
 
-  const isVercel = Boolean(process.env.VERCEL);
-  const dbDir = isVercel ? '/tmp' : process.cwd();
+  const isServerless = Boolean(
+    process.env.VERCEL || 
+    process.env.AWS_LAMBDA_FUNCTION_NAME || 
+    process.env.NODE_ENV === 'production'
+  );
+  const dbDir = isServerless ? '/tmp' : process.cwd();
   const dbPath = path.resolve(dbDir, 'leads.db');
+
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
 
   dbInstance = await open({
     filename: dbPath,
     driver: sqlite3.Database,
+    mode: sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
   });
 
   await dbInstance.exec(`
