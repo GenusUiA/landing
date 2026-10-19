@@ -25,7 +25,7 @@ const products = [
   },
   {
     name: "Бразилия Серрадо",
-    type: "Эспрессо · средняя",
+    type: "Эспрессо",
     notes: "Фундук · темный шоколад",
     price: "26 BYN",
     amount: "250 г",
@@ -75,12 +75,33 @@ function formatPhone(value: string) {
   return result;
 }
 
+function getUtmParams() {
+  if (typeof window === "undefined") return {};
+  const params = new URLSearchParams(window.location.search);
+  return {
+    utm_source: params.get("utm_source"),
+    utm_medium: params.get("utm_medium"),
+    utm_campaign: params.get("utm_campaign"),
+    utm_content: params.get("utm_content"),
+    utm_term: params.get("utm_term"),
+    source_page: window.location.href,
+  };
+}
+
+const TOPIC_MAP: Record<RequestType, string> = {
+  once: "разовый заказ",
+  subscription: "подписка",
+  question: "вопрос",
+};
+
 export default function App() {
   const [requestType, setRequestType] = useState<RequestType>("once");
   const [selectedProduct, setSelectedProduct] = useState("");
   const [phone, setPhone] = useState("");
   const [phoneError, setPhoneError] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [serverError, setServerError] = useState("");
   const formRef = useRef<HTMLElement>(null);
 
   const goToForm = (type: RequestType, product = "") => {
@@ -89,15 +110,56 @@ export default function App() {
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (loading) return;
+
     const digits = phone.replace(/\D/g, "").replace(/^375/, "");
     if (!/^(25|29|33|44)\d{7}$/.test(digits)) {
       setPhoneError("Введите корректный номер операторов Беларуси: A1, МТС или Life");
       return;
     }
+
     setPhoneError("");
-    setSubmitted(true);
+    setServerError("");
+    setLoading(true);
+
+    const formData = new FormData(event.currentTarget);
+    const name = String(formData.get("name") || "").trim();
+    let comment = String(formData.get("comment") || "").trim();
+
+    if (selectedProduct) {
+      comment = comment ? `Товар: ${selectedProduct}. ${comment}` : `Товар: ${selectedProduct}`;
+    }
+
+    const payload = {
+      name,
+      phone: `+375${digits}`,
+      topic: TOPIC_MAP[requestType],
+      comment,
+      ...getUtmParams(),
+    };
+
+    try {
+      const response = await fetch("/api/lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setServerError(data.error || "Не удалось отправить заявку. Попробуйте позже.");
+        return;
+      }
+
+      setSubmitted(true);
+    } catch {
+      setServerError("Ошибка сети. Проверьте соединение или позвоните нам напрямую.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -120,15 +182,15 @@ export default function App() {
 
       <section className="hero section-shell" id="top">
         <div className="hero-copy">
-          <div className="eyebrow">Микрообжарка · Минск · с 2019</div>
+          <div className="eyebrow">Обжарка кофе · Минск · Работаем с 2019</div>
           <h1>
-            Кофе, у которого
+            Четверг – обжарка 
             <br />
-            <em>есть четверг.</em>
+            <em>Пятница – у вас</em>
           </h1>
           <p className="hero-lead">
             Обжариваем зерно микро-партиями по 5 кг. Никаких складских запасов — только вкус,
-            который успел раскрыться, а не состариться.
+            который успел раскрыться, а не состариться
           </p>
           <div className="hero-actions">
             <a className="button button-dark" href="#coffee">
@@ -174,7 +236,7 @@ export default function App() {
         </div>
         <div className="freshness-layout">
           <p className="large-copy">
-            Кофе — живой продукт. После обжарки ему нужно несколько дней, чтобы раскрыть
+            Кофе – живой продукт. После обжарки ему нужно несколько дней, чтобы раскрыть
             сладость, аромат и характер. Лучший вкус живет в первых неделях, а не месяцах.
           </p>
           <div className="week">
@@ -210,14 +272,12 @@ export default function App() {
             <p className="kicker">Обжарим в ближайший четверг</p>
             <h2 id="catalog-title">Зерно этой недели</h2>
           </div>
-          <p>Подскажем помол под ваш способ заваривания — просто напишите в комментарии.</p>
         </div>
         <div className="product-grid">
-          {products.map((product, index) => (
+          {products.map((product) => (
             <article className="product-card" key={product.name}>
               <div className="product-image">
                 <img src={product.image} alt="" style={{ objectPosition: product.position }} />
-                <span className="product-index">0{index + 1}</span>
                 <span className="product-amount">{product.amount}</span>
               </div>
               <div className="product-info">
@@ -237,17 +297,20 @@ export default function App() {
       </section>
 
       <section className="subscription section-shell" id="subscription">
-        <div className="subscription-art" aria-hidden="true">
-          <span className="stamp">2 × 250 г</span>
-          <BeanMark />
-          <span className="scribble">каждый месяц</span>
+        <div className="subscription-visual">
+          <img
+            src="https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=85&w=1000"
+            alt="Две свежие пачки кофе по подписке"
+            className="subscription-image"
+          />
         </div>
+
         <div className="subscription-copy">
           <p className="kicker">Кофе заканчивается. Подписка — нет.</p>
           <h2>Свежий кофе по подписке</h2>
           <p>
-            Две пачки по 250 г раз в месяц. Мы подбираем зерно под ваш вкус, обжариваем и
-            привозим бесплатно.
+            Две пачки по 250 г раз в месяц. Мы подбираем зерно под ваш вкус, обжариваем в четверг и
+            привозим по пятницам бесплатно.
           </p>
           <div className="subscription-price">
             <strong>54 BYN</strong>
@@ -291,7 +354,6 @@ export default function App() {
 
       <section className="order-section section-shell" ref={formRef} id="order">
         <div className="order-copy">
-          <p className="kicker">Без корзины и онлайн-оплаты</p>
           <h2>Оставьте заявку — остальное обсудим</h2>
           <p>
             Менеджер свяжется с вами в течение рабочего дня, уточнит помол, адрес и удобный
@@ -302,7 +364,7 @@ export default function App() {
             <a href="tel:+375291234567">+375 29 123-45-67</a>
           </div>
         </div>
-
+        
         {submitted ? (
           <div className="success-panel" role="status">
             <span className="success-mark">✓</span>
@@ -373,13 +435,33 @@ export default function App() {
               {phoneError && <small id="phone-error">{phoneError}</small>}
             </label>
             <label className="field">
-              <span>Комментарий или адрес <i>необязательно</i></span>
-              <textarea name="comment" rows={3} placeholder="Например: нужен помол под воронку" />
+              <span>Комментарий или адрес</span>
+              <textarea name="comment" rows={1} placeholder="Например: нужен помол под воронку" />
             </label>
-            <button className="submit-button" type="submit">
-              Отправить заявку <Arrow />
+
+            {/* Блок ошибки ответа сервера */}
+            {serverError && (
+              <div
+                role="alert"
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  backgroundColor: "#fef2f2",
+                  color: "#991b1b",
+                  fontSize: "14px",
+                  lineHeight: "1.4",
+                  marginBottom: "12px",
+                  border: "1px solid #fecaca",
+                }}
+              >
+                {serverError}
+              </div>
+            )}
+
+            <button className="submit-button" type="submit" disabled={loading}>
+              {loading ? "Отправка..." : "Отправить заявку"} <Arrow />
             </button>
-            <p className="form-footnote">Нажимая кнопку, вы соглашаетесь на обработку данных.</p>
+            <p className="form-footnote">Нажимая кнопку, вы соглашаетесь на обработку персональных данных.</p>
           </form>
         )}
       </section>
@@ -396,13 +478,13 @@ export default function App() {
             <p>Минск, ул. Короля, 9<br />пн–пт 8:00–20:00</p>
           </div>
           <div>
-            <span>Связаться</span>
+            <span>Контакты</span>
             <a href="tel:+375291234567">+375 29 123-45-67</a>
             <a href="https://instagram.com" target="_blank" rel="noreferrer">Instagram ↗</a>
           </div>
         </div>
         <div className="footer-bottom section-shell">
-          <span>© 2025 Кварта</span>
+          <span>© 2026 Кварта</span>
           <span>ИП Иванов Д. А. · УНП 193000000</span>
           <a href="#top">Наверх ↑</a>
         </div>
